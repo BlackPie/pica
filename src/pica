@@ -1,3 +1,30 @@
 #!/bin/bash
 
-echo "it is pica"
+CONF_DIRECTORY='/etc/pica/pica.conf'
+
+
+# проверка наличия conf файла
+if [ ! -f /etc/pica/pica.conf ]; then
+   echo "Conf file ${CONF_DIRECTORY} does not exist"
+   exit 1
+fi
+
+# проверка права чтения conf файла
+if [ ! -r /etc/pica/pica.conf ]; then
+   echo "Can not read conf file ${CONF_DIRECTORY}"
+   exit 1
+fi
+
+source "${CONF_DIRECTORY}"
+
+if [ -z "${PICA_TAGS}" ]; then
+   echo "Wrong tags"
+   exit 1
+fi
+
+
+
+
+#echo "${PICA_TAGS[1]}"
+#eval "${PICA_COMMAND}"
+
