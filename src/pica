@@ -1,30 +1,52 @@
 #!/bin/bash
 
-CONF_DIRECTORY='/etc/pica/pica.conf'
-
+CONF_FILE='/etc/pica/pica.conf'
 
 # проверка наличия conf файла
 if [ ! -f /etc/pica/pica.conf ]; then
-   echo "Conf file ${CONF_DIRECTORY} does not exist"
+   echo "Conf file ${CONF_FILE} does not exist"
    exit 1
 fi
 
 # проверка права чтения conf файла
 if [ ! -r /etc/pica/pica.conf ]; then
-   echo "Can not read conf file ${CONF_DIRECTORY}"
+   echo "Can not read conf file ${CONF_FILE}"
    exit 1
 fi
 
-source "${CONF_DIRECTORY}"
+source "${CONF_FILE}"
 
 if [ -z "${PICA_TAGS}" ]; then
    echo "Wrong tags"
    exit 1
 fi
 
+# проверка наличия папки с тестами и возможности чтения
+if ! [ -d "${PICA_TEST_DIR}" -a -r "${PICA_TEST_DIR}" -a -x "${PICA_TEST_DIR}" ]; then
+   echo "Test's directory ${PICA_TEST_DIR} not found or unreadable"
+   exit 1
+fi
 
+# проверка непустоты папка с тестами
+if [ -z "$(ls ${PICA_TEST_DIR})" ]; then
+   echo "Test's folder is empty"
+   exit 1
+fi
 
+# проверка наличия папки с кэшем и возможности записи
+if ! [ -d "${PICA_TEST_CACHE_DIR}" -a -w "${PICA_TEST_CACHE_DIR}" -a -r "${PICA_TEST_CACHE_DIR}" -a -x "${PICA_TEST_CACHE_DIR}" ]; then
+   echo "Cache directory ${PICA_TEST_CACHE_DIR} not found or has wrong permissions"
+   exit 1
+fi
 
-#echo "${PICA_TAGS[1]}"
-#eval "${PICA_COMMAND}"
+for TEST_FILE in "${PICA_TEST_DIR}"/*.pa; do
+  echo -n "${TEST_FILE##*/}... " >&2
+  source "${TEST_FILE}"
 
+  if ${PA_COMMAND} >/dev/null 2>/dev/null; then
+    RESULT='OK'
+  else
+    RESULT='FAIL'
+  fi
+  echo "${RESULT}" | tee "${PICA_TEST_CACHE_DIR}/${TEST_FILE##*/}.cache" >&2
+done
