@@ -2,44 +2,41 @@
 
 CONF_FILE='/etc/pica/pica.conf'
 
+exit_error() {
+  echo "${*}" >&2
+  exit 1
+}
+
 # проверка наличия conf файла
-if [ ! -f /etc/pica/pica.conf ]; then
-   echo "Conf file ${CONF_FILE} does not exist"
-   exit 1
-fi
+[ -f "${CONF_FILE}" ] || exit_error "Conf file ${CONF_FILE} does not exist"
 
 # проверка права чтения conf файла
-if [ ! -r /etc/pica/pica.conf ]; then
-   echo "Can not read conf file ${CONF_FILE}"
-   exit 1
-fi
+[ -r "${CONF_FILE}" ] || exit_error "Can not read conf file ${CONF_FILE}"
 
 source "${CONF_FILE}"
-
-if [ -z "${PICA_TAGS}" ]; then
-   echo "Wrong tags"
-   exit 1
-fi
+ 
+[ -z "${PICA_TAGS}" ] && exit_error "Wrong tags"
 
 # проверка наличия папки с тестами и возможности чтения
-if ! [ -d "${PICA_TEST_DIR}" -a -r "${PICA_TEST_DIR}" -a -x "${PICA_TEST_DIR}" ]; then
-   echo "Test's directory ${PICA_TEST_DIR} not found or unreadable"
-   exit 1
-fi
+[ -d "${PICA_TEST_DIR}" -a -r "${PICA_TEST_DIR}" -a -x "${PICA_TEST_DIR}" ] \
+  || exit_error "Test's directory ${PICA_TEST_DIR} not found or unreadable"
 
 # проверка непустоты папка с тестами
-if [ -z "$(ls ${PICA_TEST_DIR})" ]; then
-   echo "Test's folder is empty"
-   exit 1
-fi
+[ -z "$(ls ${PICA_TEST_DIR})" ] && exit_error "Test's folder is empty"
 
 # проверка наличия папки с кэшем и возможности записи
-if ! [ -d "${PICA_TEST_CACHE_DIR}" -a -w "${PICA_TEST_CACHE_DIR}" -a -r "${PICA_TEST_CACHE_DIR}" -a -x "${PICA_TEST_CACHE_DIR}" ]; then
-   echo "Cache directory ${PICA_TEST_CACHE_DIR} not found or has wrong permissions"
-   exit 1
-fi
+[ -d "${PICA_TEST_CACHE_DIR}" -a -w "${PICA_TEST_CACHE_DIR}" -a -r "${PICA_TEST_CACHE_DIR}" -a -x "${PICA_TEST_CACHE_DIR}" ] \
+  || exit_error "Cache directory ${PICA_TEST_CACHE_DIR} not found or has wrong permissions"
 
+# переборка всех тест файлов
 for TEST_FILE in "${PICA_TEST_DIR}"/*.pa; do
+
+  #проверка тест файла на читаемость
+  if ! [ -r "${TEST_FILE}" ]; then
+    echo "Test file ${TEST_FILE} is unreadable" >&2
+    continue
+  fi
+
   echo -n "${TEST_FILE##*/}... " >&2
   source "${TEST_FILE}"
 
