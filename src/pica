@@ -31,14 +31,21 @@ source "${CONF_FILE}"
 # переборка всех тест файлов
 for TEST_FILE in "${PICA_TEST_DIR}"/*.pa; do
 
-  #проверка тест файла на читаемость
+  # проверка тест файла на читаемость
   if ! [ -r "${TEST_FILE}" ]; then
     echo "Test file ${TEST_FILE} is unreadable" >&2
     continue
   fi
 
-  echo -n "${TEST_FILE##*/}... " >&2
   source "${TEST_FILE}"
+
+  # отсечение тестов с неудовлетворяющим тегом
+  COMMON_TAG=$(echo ${PICA_TAGS[@]} ${TEST_TAG[@]} | tr ' ' '\n' | sort | uniq -d) 
+  [ -z "${COMMON_TAG}" ] && continue
+
+
+
+  echo -n "${TEST_FILE##*/}... " >&2
 
   if ${PA_COMMAND} >/dev/null 2>/dev/null; then
     RESULT='OK'
@@ -47,3 +54,13 @@ for TEST_FILE in "${PICA_TEST_DIR}"/*.pa; do
   fi
   echo "${RESULT}" | tee "${PICA_TEST_CACHE_DIR}/${TEST_FILE##*/}.cache" >&2
 done
+
+
+
+
+
+
+
+
+
+
