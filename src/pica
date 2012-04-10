@@ -44,6 +44,15 @@ for TEST_FILE in "${PICA_TEST_DIR}"/*.pa; do
   [ -z "${COMMON_TAG}" ] && continue
 
 
+  # исключение тестов по имени в глобальном конфиге
+  TEST_EXCEPTIONS=$(echo ${PICA_EXCEPTIONS[@]} ${TEST_FILE##*/} | tr ' ' '\n' | sort | uniq -d)  
+  if [ "${TEST_EXCEPTIONS}" = "${TEST_FILE##*/}" ]; then
+    continue
+  fi
+
+
+
+
 
   echo -n "${TEST_FILE##*/}... " >&2
 
