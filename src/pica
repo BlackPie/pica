@@ -7,6 +7,20 @@ exit_error() {
   exit 1
 }
 
+# запись кэш файла
+# 1 - PATHFILE
+# 2 - PA_VERSION
+# 3 - RESULT
+# 4 - PA_COMMENT_OK
+# 5 - PA_COMMENT_FAIL
+save_cache() {
+  echo "CACHE_VERSION=${2}" > "${1}~" || exit_error "Write cache file ${1}~ failed"
+  echo "CACHE_STATUS=${3}" >> "${1}~" || exit_error "Write cache file ${1}~ failed"
+  [ "${RESULT}" = 'OK' ] && COMMENT="${PA_COMMENT_OK}" || COMMENT="${PA_COMMENT_FAIL}"
+  echo "CACHE_COMMENT=${COMMENT}" >> "${1}~" || exit_error "Write cache file ${1}~ failed"
+  mv "${1}~" "${1}" || exit_error "Write cache file ${1} failed"
+}
+
 # проверка наличия conf файла
 [ -f "${CONF_FILE}" ] || exit_error "Conf file ${CONF_FILE} does not exist"
 
@@ -40,7 +54,7 @@ for TEST_FILE in "${PICA_TEST_DIR}"/*.pa; do
   source "${TEST_FILE}"
 
   # отсечение тестов с неудовлетворяющим тегом
-  COMMON_TAG=$(echo ${PICA_TAGS[@]} ${TEST_TAG[@]} | tr ' ' '\n' | sort | uniq -d) 
+  COMMON_TAG=$(echo ${PICA_TAGS[@]} ${PA_TAG[@]} | tr ' ' '\n' | sort | uniq -d) 
   [ -z "${COMMON_TAG}" ] && continue
 
 
@@ -50,26 +64,25 @@ for TEST_FILE in "${PICA_TEST_DIR}"/*.pa; do
     continue
   fi
 
+  # фильтрация тестов по EXPIRED
+  # echo $[$(date +'%s')-$(stat -c '%Z' pica)]
+  echo $(ls "${PICA_TEST_CACHE_DIR}/${TEST_FILE##*/}.cache" -l --full | cut -f 4)
 
+  # очистка кэша для новой записи (потом добавится проверка EXPIRE)
+#  cp /dev/null "${PICA_TEST_CACHE_DIR}/${TEST_FILE##*/}.cache"
 
-
-
-  echo -n "${TEST_FILE##*/}... " >&2
+  echo -n "${TEST_FILE##*/}... " >&2 
 
   if ${PA_COMMAND} >/dev/null 2>/dev/null; then
     RESULT='OK'
   else
-    RESULT='FAIL'
+    RESULT="${PA_SEVERITY}"
   fi
-  echo "${RESULT}" | tee "${PICA_TEST_CACHE_DIR}/${TEST_FILE##*/}.cache" >&2
+  #echo "${RESULT}" | tee "${PICA_TEST_CACHE_DIR}/${TEST_FILE##*/}.cache" >&2
+  echo "${RESULT}" >&2
+
+
+  save_cache "${PICA_TEST_CACHE_DIR}/${TEST_FILE##*/}.cache" "${PA_VERSION}" "${RESULT}" "${PA_COMMENT_OK}" "${PA_COMMENT_FAIL}"
+
+
 done
-
-
-
-
-
-
-
-
-
-
