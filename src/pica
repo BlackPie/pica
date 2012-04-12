@@ -66,7 +66,18 @@ for TEST_FILE in "${PICA_TEST_DIR}"/*.pa; do
 
   # фильтрация тестов по EXPIRED
   # echo $[$(date +'%s')-$(stat -c '%Z' pica)]
-  echo $(ls "${PICA_TEST_CACHE_DIR}/${TEST_FILE##*/}.cache" -l --full | cut -f 4)
+
+ # if [ $[$(date +'%s')-$(stat -c '%Z' ${PICA_TEST_CACHE_DIR}/${TEST_FILE##*/}.cache)] < ${PA_EXPIRE} ]; then
+ LIFETIME_OF_CACHE=$[$(date +'%s')-$(stat -c '%Z' ${PICA_TEST_CACHE_DIR}/${TEST_FILE##*/}.cache)]
+
+
+
+  if [ ${PA_EXPIRE} -gt ${LIFETIME_OF_CACHE} ]; then
+    echo "${TEST_FILE##*/}.cache is not expired yet"
+    continue
+  fi
+
+
 
   # очистка кэша для новой записи (потом добавится проверка EXPIRE)
 #  cp /dev/null "${PICA_TEST_CACHE_DIR}/${TEST_FILE##*/}.cache"
