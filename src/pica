@@ -7,6 +7,11 @@ exit_error() {
   exit 1
 }
 
+save_report() {
+  echo "REPORT_STATUS=${2}" > "${1}~" || exit_error "Write report file ${1}~ failed"
+  mv "${1}~" "${1}" || exit_error "Write cache file ${1} failed"
+}
+
 # запись кэш файла
 # 1 - PATHFILE
 # 2 - PA_VERSION
@@ -14,10 +19,10 @@ exit_error() {
 # 4 - PA_COMMENT_OK
 # 5 - PA_COMMENT_FAIL
 save_cache() {
-  echo "CACHE_VERSION=${2}" > "${1}~" || exit_error "Write cache file ${1}~ failed"
-  echo "CACHE_STATUS=${3}" >> "${1}~" || exit_error "Write cache file ${1}~ failed"
+  echo "CACHE_VERSION=\"${2}\"" > "${1}~" || exit_error "Write cache file ${1}~ failed"
+  echo "CACHE_STATUS=\"${3}\"" >> "${1}~" || exit_error "Write cache file ${1}~ failed"
   [ "${RESULT}" = 'OK' ] && COMMENT="${PA_COMMENT_OK}" || COMMENT="${PA_COMMENT_FAIL}"
-  echo "CACHE_COMMENT=${COMMENT}" >> "${1}~" || exit_error "Write cache file ${1}~ failed"
+  echo "CACHE_COMMENT=\"${COMMENT}\"" >> "${1}~" || exit_error "Write cache file ${1}~ failed"
   mv "${1}~" "${1}" || exit_error "Write cache file ${1} failed"
 }
 
@@ -42,6 +47,9 @@ source "${CONF_FILE}"
 [ -d "${PICA_TEST_CACHE_DIR}" -a -w "${PICA_TEST_CACHE_DIR}" -a -r "${PICA_TEST_CACHE_DIR}" -a -x "${PICA_TEST_CACHE_DIR}" ] \
   || exit_error "Cache directory ${PICA_TEST_CACHE_DIR} not found or has wrong permissions"
 
+REPORT_WARNING=0
+REPORT_CRITICAL=0
+
 # переборка всех тест файлов
 for TEST_FILE in "${PICA_TEST_DIR}"/*.pa; do
 
@@ -65,22 +73,13 @@ for TEST_FILE in "${PICA_TEST_DIR}"/*.pa; do
   fi
 
   # фильтрация тестов по EXPIRED
-  # echo $[$(date +'%s')-$(stat -c '%Z' pica)]
-
- # if [ $[$(date +'%s')-$(stat -c '%Z' ${PICA_TEST_CACHE_DIR}/${TEST_FILE##*/}.cache)] < ${PA_EXPIRE} ]; then
- LIFETIME_OF_CACHE=$[$(date +'%s')-$(stat -c '%Z' ${PICA_TEST_CACHE_DIR}/${TEST_FILE##*/}.cache)]
-
-
-
+  LIFETIME_OF_CACHE=$[$(date +'%s')-$(stat -c '%Z' ${PICA_TEST_CACHE_DIR}/${TEST_FILE##*/}.cache)]
+  # проверка кэша по EXPIRE
   if [ ${PA_EXPIRE} -gt ${LIFETIME_OF_CACHE} ]; then
     echo "${TEST_FILE##*/}.cache is not expired yet"
     continue
   fi
 
-
-
-  # очистка кэша для новой записи (потом добавится проверка EXPIRE)
-#  cp /dev/null "${PICA_TEST_CACHE_DIR}/${TEST_FILE##*/}.cache"
 
   echo -n "${TEST_FILE##*/}... " >&2 
 
@@ -92,8 +91,32 @@ for TEST_FILE in "${PICA_TEST_DIR}"/*.pa; do
   #echo "${RESULT}" | tee "${PICA_TEST_CACHE_DIR}/${TEST_FILE##*/}.cache" >&2
   echo "${RESULT}" >&2
 
+  # создание статуса для отчета
+  if [ "${RESULT}" = "CRITICAL" ]; then
+    let "REPORT_CRITICAL = REPORT_CRITICAL + 1"
+  elif [ "${RESULT}" = "WARNING" ]; then
+    let "REPORT_WARNING = REPORT_WARNING + 1"
+  fi
 
   save_cache "${PICA_TEST_CACHE_DIR}/${TEST_FILE##*/}.cache" "${PA_VERSION}" "${RESULT}" "${PA_COMMENT_OK}" "${PA_COMMENT_FAIL}"
 
-
 done
+
+if [ ${REPORT_WARNING} = 0 -a ${REPORT_CRITICAL} = 0 ]; then
+  REPORT_STATUS="OK"
+elif [ ${REPORT_WARNING} != 0 -a ${REPORT_CRITICAL} = 0 ]; then
+  REPORT_STATUS="WARNING"
+elif [ ${REPORT_CRITICAL} != 0 ]; then
+  REPORT_STATUS="CRITICAL"
+fi
+
+# Запись статуса в отчет
+echo "REPORT_STATUS=${REPORT_STATUS}" > "${PICA_REPORT_DIR}/report~" || exit_error "Write report file ${1}~ failed"
+
+# Запись комментариев к тестам в отчет
+for CACHE_FILE in "${PICA_TEST_CACHE_DIR}"/*.cache; do
+  source "${CACHE_FILE}"
+  echo "${CACHE_FILE##*/} : ${CACHE_COMMENT} " >> "${PICA_REPORT_DIR}/report~" || exit_error "Write report file ${1}~ failed"
+done
+
+mv "${PICA_REPORT_DIR}/report~" "${PICA_REPORT_DIR}/report" || exit_error "Write cache file ${1} failed"
