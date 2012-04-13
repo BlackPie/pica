@@ -70,7 +70,14 @@ for TEST_FILE in "${PICA_TEST_DIR}"/*.pa; do
     continue
   fi
 
-
+  # очищение среды для нового теста
+  unset ${PA_VERSION}
+  unset ${PA_TAG}
+  unset ${PA_COMMAND}
+  unset ${PA_COMMENT_OK}
+  unset ${PA_COMMENT_FAIL}
+  unset ${PA_EXPIRE}
+  unset ${PA_SEVERITY}
 
   source "${TEST_FILE}" || continue_error "can not load ${TEST_FILE}" 
   [ -z "${PA_VERSION}" ] && continue_error "${PA_VERSION} is not exist in ${TEST_FLE}"
@@ -81,13 +88,9 @@ for TEST_FILE in "${PICA_TEST_DIR}"/*.pa; do
   [ -z "${PA_EXPIRE}" ] && continue_error "${PA_EXPIRE} is not exist in ${TEST_FLE}"
   [ -z "${PA_SEVERITY}" ] && continue_error "${PA_SEVERITY} is not exist in ${TEST_FLE}"
 
-
-
-
   # отсечение тестов с неудовлетворяющим тегом
   COMMON_TAG=$(echo ${PICA_TAGS[@]} ${PA_TAG[@]} | tr ' ' '\n' | sort | uniq -d) 
   [ -z "${COMMON_TAG}" ] && continue
-
 
   # исключение тестов по имени в глобальном конфиге
   [ -n "$(echo ${PICA_EXCEPTIONS[@]} ${TEST_FILE##*/} | tr ' ' '\n' | sort | uniq -d)" ] && continue
