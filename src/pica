@@ -2,15 +2,17 @@
 
 CONF_FILE='/etc/pica/pica.conf'
 
+
+write_log() {
+  [ -n "${PICA_LOG_FILE}" ] && echo "$(date): ${*}" >> "${PICA_LOG_FILE}"
+}
+
 exit_error() {
   echo "${*}" >&2
+  write_log "${*}"
   exit 1
 }
 
-continue_error() {
-  echo "${*}" >&2
-  continue
-}
 
 save_report() {
   echo "REPORT_STATUS=${2}" > "${1}~" || exit_error "Write report file ${1}~ failed"
@@ -31,13 +33,14 @@ save_cache() {
   mv "${1}~" "${1}" || exit_error "Write cache file ${1} failed"
 }
 
-set_param() {
+load_file() {
   FILENAME="${1}"
   shift
   while read LINE; do
+    [ -z "${LINE}" -o "${LINE#\#}" != "${LINE}" ] && continue
     if [ "$(echo ${@} ${LINE%%=*} | tr ' ' '\n' | sort | uniq -d)" = "${LINE%%=*}" ]; then
       eval "${LINE%%=*}=${LINE#*=}"
-    else
+    else 
       echo "Error line: ${LINE}"  >&2
       return 1
     fi
@@ -51,14 +54,16 @@ set_param() {
 [ -r "${CONF_FILE}" ] || exit_error "Can not read conf file ${CONF_FILE}"
 
 # загружаем из конфигурационного файла указанные опции
-set_param "${CONF_FILE}" PICA_TAGS PICA_TEST_DIR PICA_TEST_CACHE_DIR PICA_REPORT_DIR PICA_EXCEPTIONS \
+load_file "${CONF_FILE}" PICA_TAGS PICA_TEST_DIR PICA_TEST_CACHE_DIR PICA_REPORT_DIR PICA_EXCEPTIONS PICA_LOG_FILE \
   || exit_error "Error loading config file ${CONF_FILE}"
 
-[ -z "${PICA_TAGS}" ] && exit_error "${PICA_TAGS}\'s not exist in ${CONF_FILE}"
-[ -z "${PICA_TEST_DIR}" ] && exit_error "${PICA_TEST_DIR}\'s not exist in ${CONF_FILE}"
-[ -z "${PICA_TEST_CACHE_DIR}" ] && exit_error "${PICA_TEST_CACHE_DIR}\'s not exist in ${CONF_FILE}"
-[ -z "${PICA_REPORT_DIR}" ] && exit_error "${PICA_REPORT_DIR}\'s not exist in ${CONF_FILE}"
-[ -z "${PICA_EXCEPTIONS}" ] && exit_error "${PICA_EXCEPTIONS}\'s not exist in ${CONF_FILE}"
+[ -z "${PICA_TAGS}" ] && echo "PICA_TAGS is not set in ${CONF_FILE}" && continue
+[ -z "${PICA_TEST_DIR}" ] && echo "PICA_TEST_DIR is not set in ${CONF_FILE}" && continue
+[ -z "${PICA_TEST_CACHE_DIR}" ] && echo "PICA_TEST_CACHE_DIR is not set in ${CONF_FILE}" && continue
+[ -z "${PICA_REPORT_DIR}" ] && echo "PICA_REPORT_DIR is not set in ${CONF_FILE}" && continue
+[ -z "${PICA_EXCEPTIONS}" ] && echo "PICA_EXCEPTIONS is not set in ${CONF_FILE}" && continue
+[ -z "${PICA_LOG_FILE}" ] && echo "PICA_LOG_FILE is not set in ${CONF_FILE}" && continue
+
 
 # проверка наличия папки с тестами и возможности чтения
 [ -d "${PICA_TEST_DIR}" -a -r "${PICA_TEST_DIR}" -a -x "${PICA_TEST_DIR}" ] \
@@ -73,6 +78,8 @@ set_param "${CONF_FILE}" PICA_TAGS PICA_TEST_DIR PICA_TEST_CACHE_DIR PICA_REPORT
 
 REPORT_WARNING=0
 REPORT_CRITICAL=0
+TOTAL=0
+TOTAL_OK=0
 
 # переборка всех тест файлов
 for TEST_FILE in "${PICA_TEST_DIR}"/*.pa; do
@@ -92,14 +99,16 @@ for TEST_FILE in "${PICA_TEST_DIR}"/*.pa; do
   unset ${PA_EXPIRE}
   unset ${PA_SEVERITY}
 
-  source "${TEST_FILE}" || continue_error "can not load ${TEST_FILE}" 
-  [ -z "${PA_VERSION}" ] && continue_error "${PA_VERSION} is not exist in ${TEST_FLE}"
-  [ -z "${PA_TAG}" ] && continue_error "${PA_TAG} is not exist in ${TEST_FLE}"
-  [ -z "${PA_COMMAND}" ] && continue_error "${PA_COMMAND} is not exist in ${TEST_FLE}"
-  [ -z "${PA_COMMENT_OK}" ] && continue_error "${PA_COMMENT_OK} is not exist in ${TEST_FLE}"
-  [ -z "${PA_COMMENT_FAIL}" ] && continue_error "${PA_COMMENT_FAIL} is not exist in ${TEST_FLE}"
-  [ -z "${PA_EXPIRE}" ] && continue_error "${PA_EXPIRE} is not exist in ${TEST_FLE}"
-  [ -z "${PA_SEVERITY}" ] && continue_error "${PA_SEVERITY} is not exist in ${TEST_FLE}"
+  load_file "${TEST_FILE}" PA_VERSION PA_TAG PA_COMMAND PA_COMMENT_OK PA_COMMENT_FAIL PA_EXPIRE PA_SEVERITY \
+    || exit_error "Error loading config file ${CONF_FILE}"
+
+  [ -z "${PA_VERSION}" ] && echo "PA_VERSION is not exist in ${TEST_FLE}" && continue
+  [ -z "${PA_TAG}" ] && echo "PA_TAG is not exist in ${TEST_FLE}" && continue
+  [ -z "${PA_COMMAND}" ] && echo "PA_COMMAND is not exist in ${TEST_FLE}" && continue
+  [ -z "${PA_COMMENT_OK}" ] && echo "PA_COMMENT_OK is not exist in ${TEST_FLE}" && continue
+  [ -z "${PA_COMMENT_FAIL}" ] && echo "PA_COMMENT_FAIL is not exist in ${TEST_FLE}" && continue
+  [ -z "${PA_EXPIRE}" ] && echo "PA_EXPIRE is not exist in ${TEST_FLE}" && continue
+  [ -z "${PA_SEVERITY}" ] && echo "PA_SEVERITY is not exist in ${TEST_FLE}" && continue
 
   # отсечение тестов с неудовлетворяющим тегом
   COMMON_TAG=$(echo ${PICA_TAGS[@]} ${PA_TAG[@]} | tr ' ' '\n' | sort | uniq -d) 
@@ -108,7 +117,7 @@ for TEST_FILE in "${PICA_TEST_DIR}"/*.pa; do
   # исключение тестов по имени в глобальном конфиге
   [ -n "$(echo ${PICA_EXCEPTIONS[@]} ${TEST_FILE##*/} | tr ' ' '\n' | sort | uniq -d)" ] && continue
 
-  echo -n "${TEST_FILE##*/}... " >&2 
+  echo -n "${TEST_FILE##*/}... " >&2
 
   # фильтрация тестов по EXPIRED
   LIFETIME_OF_CACHE=$[$(date +'%s')-$(stat -c '%Z' ${PICA_TEST_CACHE_DIR}/${TEST_FILE##*/}.cache)]
@@ -117,8 +126,6 @@ for TEST_FILE in "${PICA_TEST_DIR}"/*.pa; do
     echo 'cached' >&2
     continue
   fi
-
-
 
   if ${PA_COMMAND} >/dev/null 2>/dev/null; then
     RESULT='OK'
@@ -131,16 +138,19 @@ for TEST_FILE in "${PICA_TEST_DIR}"/*.pa; do
   # создание статуса для отчета
   if [ "${RESULT}" = "CRITICAL" ]; then
     let "REPORT_CRITICAL = REPORT_CRITICAL + 1"
+    let "TOTAL_OK=TOTAL_OK-1"
   elif [ "${RESULT}" = "WARNING" ]; then
     let "REPORT_WARNING = REPORT_WARNING + 1"
+    let "TOTAL_OK=TOTAL_OK-1"
   fi
 
   save_cache "${PICA_TEST_CACHE_DIR}/${TEST_FILE##*/}.cache" "${PA_VERSION}" "${RESULT}" "${PA_COMMENT_OK}" "${PA_COMMENT_FAIL}"
   
   [ "${RESULT}" = 'OK' ] && COMMENT="${PA_COMMENT_OK}" || COMMENT="${PA_COMMENT_FAIL}"
   TEST_COMMENTS="${TEST_COMMENTS}\n ${TEST_FILE##*/} : ${COMMENT} "
+  let "TOTAL=TOTAL+1"
+  let "TOTAL_OK=TOTAL_OK+1"
 done
-
 
 if [ ${REPORT_WARNING} = 0 -a ${REPORT_CRITICAL} = 0 ]; then
   REPORT_STATUS="OK"
@@ -151,10 +161,7 @@ elif [ ${REPORT_CRITICAL} != 0 ]; then
 fi
 
 # Запись статуса в отчет
-
-echo "REPORT_STATUS=${REPORT_STATUS}" > "${PICA_REPORT_DIR}/report~" || exit_error "Write report file ${PICA_REPORT_DIR}/report~ failed"
-
+echo "TOTAL=${TOTAL_OK}/${TOTAL}" > "${PICA_REPORT_DIR}/report~" || exit_error "Write report file ${PICA_REPORT_DIR}/report~ failed"
+echo "REPORT_STATUS=${REPORT_STATUS}" >> "${PICA_REPORT_DIR}/report~" || exit_error "Write report file ${PICA_REPORT_DIR}/report~ failed"
 echo -e "${TEST_COMMENTS}" >> "${PICA_REPORT_DIR}/report~" || exit_error "Write report file ${PICA_REPORT_DIR}/report~ failed"
-
-
 mv "${PICA_REPORT_DIR}/report~" "${PICA_REPORT_DIR}/report" || exit_error "Write cache file ${1} failed"
