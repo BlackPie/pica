@@ -110,6 +110,10 @@ for TEST_FILE in "${PICA_TEST_DIR}"/*.pa; do
   [ -z "${PA_EXPIRE}" ] && echo "PA_EXPIRE is not exist in ${TEST_FLE}" && continue
   [ -z "${PA_SEVERITY}" ] && echo "PA_SEVERITY is not exist in ${TEST_FLE}" && continue
 
+  # загрузка кеш файла, если он есть
+  [ -n "${PICA_TEST_CACHE_DIR}/${TEST_FILE##*/}.cache" ] && load_file "${PICA_TEST_CACHE_DIR}/${TEST_FILE##*/}.cache" CACHE_VERSION \
+    CACHE_STATUS CACHE_COMMENT  || exit_error "Error loading config file ${CONF_FILE}"
+
   # отсечение тестов с неудовлетворяющим тегом
   COMMON_TAG=$(echo ${PICA_TAGS[@]} ${PA_TAG[@]} | tr ' ' '\n' | sort | uniq -d) 
   [ -z "${COMMON_TAG}" ] && continue
@@ -122,7 +126,7 @@ for TEST_FILE in "${PICA_TEST_DIR}"/*.pa; do
   # фильтрация тестов по EXPIRED
   LIFETIME_OF_CACHE=$[$(date +'%s')-$(stat -c '%Z' ${PICA_TEST_CACHE_DIR}/${TEST_FILE##*/}.cache)]
   # проверка кэша по EXPIRE
-  if [ "${LIFETIME_OF_CACHE}" -lt "${PA_EXPIRE}" ]; then
+  if [ "${LIFETIME_OF_CACHE}" -lt "${PA_EXPIRE}" -a "${PA_VERSION}" = "${CACHE_VERSION}" ]; then
     echo 'cached' >&2
     continue
   fi
