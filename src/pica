@@ -31,14 +31,29 @@ save_cache() {
   mv "${1}~" "${1}" || exit_error "Write cache file ${1} failed"
 }
 
+set_param() {
+  FILENAME="${1}"
+  shift
+  while read LINE; do
+    if [ "$(echo ${@} ${LINE%%=*} | tr ' ' '\n' | sort | uniq -d)" = "${LINE%%=*}" ]; then
+      eval "${LINE%%=*}=${LINE#*=}"
+    else
+      echo "Error line: ${LINE}"  >&2
+      return 1
+    fi
+  done < "${FILENAME}"
+}
+
 # проверка наличия conf файла
 [ -f "${CONF_FILE}" ] || exit_error "Conf file ${CONF_FILE} does not exist"
 
 # проверка права чтения conf файла
 [ -r "${CONF_FILE}" ] || exit_error "Can not read conf file ${CONF_FILE}"
 
-# проверка переменных conf файл
-source ${CONF_FILE} || exit_error "Can not read conf file ${CONF_FILE}"
+# загружаем из конфигурационного файла указанные опции
+set_param "${CONF_FILE}" PICA_TAGS PICA_TEST_DIR PICA_TEST_CACHE_DIR PICA_REPORT_DIR PICA_EXCEPTIONS \
+  || exit_error "Error loading config file ${CONF_FILE}"
+
 [ -z "${PICA_TAGS}" ] && exit_error "${PICA_TAGS}\'s not exist in ${CONF_FILE}"
 [ -z "${PICA_TEST_DIR}" ] && exit_error "${PICA_TEST_DIR}\'s not exist in ${CONF_FILE}"
 [ -z "${PICA_TEST_CACHE_DIR}" ] && exit_error "${PICA_TEST_CACHE_DIR}\'s not exist in ${CONF_FILE}"
@@ -58,8 +73,6 @@ source ${CONF_FILE} || exit_error "Can not read conf file ${CONF_FILE}"
 
 REPORT_WARNING=0
 REPORT_CRITICAL=0
-
-#set -x
 
 # переборка всех тест файлов
 for TEST_FILE in "${PICA_TEST_DIR}"/*.pa; do
