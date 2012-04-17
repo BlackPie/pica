@@ -60,9 +60,6 @@ load_file() {
 # проверка права чтения conf файла
 [ -r "${CONF_FILE}" ] || exit_error "Can not read conf file ${CONF_FILE}"
 
-# проверка прав записи в лог файл
-[ -w "${PICA_LOG_FILE}" ] || exit_error "${PICA_LOG_FILE} is not writable "
-
 # загружаем из конфигурационного файла указанные опции
 load_file "${CONF_FILE}" PICA_TAGS PICA_TEST_DIR PICA_TEST_CACHE_DIR PICA_REPORT_DIR PICA_EXCEPTIONS PICA_LOG_FILE \
   || exit_error "Error loading config file ${CONF_FILE}"
@@ -74,6 +71,11 @@ load_file "${CONF_FILE}" PICA_TAGS PICA_TEST_DIR PICA_TEST_CACHE_DIR PICA_REPORT
 [ -z "${PICA_EXCEPTIONS}" ] && exit_error "PICA_EXCEPTIONS is not set in ${CONF_FILE}"
 [ -z "${PICA_LOG_FILE}" ] && exit_error "PICA_LOG_FILE is not set in ${CONF_FILE}"
 
+# проверка прав записи в лог файл
+  [ -w "${PICA_LOG_FILE}" ] || exit_error "${PICA_LOG_FILE} is not writable "
+
+# проверка прав записи отчета
+  [ -w "${PICA_REPORT_DIR}/report" ] || exit_error "${PICA_REPORT_DIR}/report is not writable "
 
 # проверка наличия папки с тестами и возможности чтения
 [ -d "${PICA_TEST_DIR}" -a -r "${PICA_TEST_DIR}" -a -x "${PICA_TEST_DIR}" ] \
