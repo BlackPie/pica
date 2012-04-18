@@ -20,8 +20,7 @@ exit_error() {
 # 4 - REPORT_STATUS
 # 5 - TEST_COMMENTS
 save_report() {
-  echo "TOTAL=${2}/${3}" > "${1}~" || exit_error "Write report file ${1}~ failed"
-  echo "REPORT_STATUS=${4}" >> "${1}~" || exit_error "Write report file ${1}~ failed"
+  echo "${4} (${2}/${3})" > "${1}~" || exit_error "Write report file ${1}~ failed"
   echo -e "${5}" >> "${1}~" || exit_error "Write report file ${1}~ failed"
   mv "${1}~" "${1}" || exit_error "Write report file ${1} failed"
 }
@@ -103,13 +102,18 @@ for TEST_FILE in "${PICA_TEST_DIR}"/*.pa; do
   fi
 
   # очистка среды для нового теста
-  unset ${PA_VERSION}
-  unset ${PA_TAG}
-  unset ${PA_COMMAND}
-  unset ${PA_COMMENT_OK}
-  unset ${PA_COMMENT_FAIL}
-  unset ${PA_EXPIRE}
-  unset ${PA_SEVERITY}
+  unset PA_VERSION
+  unset PA_TAG
+  unset PA_COMMAND
+  unset PA_COMMENT_OK
+  unset PA_COMMENT_FAIL
+  unset PA_EXPIRE
+  unset PA_SEVERITY
+
+  unset CACHE_VERSION
+  unset CACHE_STATUS
+  unset CACHE_COMMENT
+
 
   load_file "${TEST_FILE}" PA_VERSION PA_TAG PA_COMMAND PA_COMMENT_OK PA_COMMENT_FAIL PA_EXPIRE PA_SEVERITY \
     || exit_error "Error loading config file ${CONF_FILE}"
@@ -122,12 +126,6 @@ for TEST_FILE in "${PICA_TEST_DIR}"/*.pa; do
   [ -z "${PA_EXPIRE}" ] && echo "PA_EXPIRE is not exist in ${TEST_FILE}" >&2 && continue
   [ -z "${PA_SEVERITY}" ] && echo "PA_SEVERITY is not exist in ${TEST_FILE}" >&2 && continue
 
-  # загрузка кеш файла, если он есть
-  if [ -e "${PICA_TEST_CACHE_DIR}/${TEST_FILE##*/}.cache" ]; then
-    load_file "${PICA_TEST_CACHE_DIR}/${TEST_FILE##*/}.cache" CACHE_VERSION CACHE_STATUS CACHE_COMMENT \
-      || exit_error "Error loading config file ${CONF_FILE}"
-  fi
-
   # отсечение тестов с неудовлетворяющим тегом
   [ -z "$(echo ${PICA_TAGS[@]} ${PA_TAG[@]} | tr ' ' '\n' | sort | uniq -d)" ] && continue
 
@@ -136,12 +134,18 @@ for TEST_FILE in "${PICA_TEST_DIR}"/*.pa; do
 
   echo -n "${TEST_FILE##*/}... " >&2
 
-  # фильтрация тестов по EXPIRED
-  LIFETIME_OF_CACHE=$[$(date +'%s')-$(stat -c '%Z' ${PICA_TEST_CACHE_DIR}/${TEST_FILE##*/}.cache)]
-  # проверка кэша по EXPIRE
-  if [ "${LIFETIME_OF_CACHE}" -lt "${PA_EXPIRE}" -a "${PA_VERSION}" = "${CACHE_VERSION}" ]; then
-    echo 'cached' >&2
-    continue
+  # проверка кеш файла
+  if [ -e "${PICA_TEST_CACHE_DIR}/${TEST_FILE##*/}.cache" ]; then
+  # загрузка кеш файла
+    load_file "${PICA_TEST_CACHE_DIR}/${TEST_FILE##*/}.cache" CACHE_VERSION CACHE_STATUS CACHE_COMMENT \
+      || exit_error "Error loading config file ${CONF_FILE}"
+
+    # проверка кэша по EXPIRE
+    LIFETIME_OF_CACHE=$[$(date +'%s')-$(stat -c '%Z' "${PICA_TEST_CACHE_DIR}/${TEST_FILE##*/}.cache")]
+    if [ "${LIFETIME_OF_CACHE}" -lt "${PA_EXPIRE}" -a "${PA_VERSION}" = "${CACHE_VERSION}" ]; then
+      echo 'cached' >&2
+      continue
+    fi
   fi
 
   if ${PA_COMMAND} >/dev/null 2>/dev/null; then
@@ -164,7 +168,7 @@ for TEST_FILE in "${PICA_TEST_DIR}"/*.pa; do
   save_cache "${PICA_TEST_CACHE_DIR}/${TEST_FILE##*/}.cache" "${PA_VERSION}" "${RESULT}" "${PA_COMMENT_OK}" "${PA_COMMENT_FAIL}"
   
   [ "${RESULT}" = 'OK' ] && COMMENT="${PA_COMMENT_OK}" || COMMENT="${PA_COMMENT_FAIL}"
-  TEST_COMMENTS="${TEST_COMMENTS}\n${TEST_FILE##*/}: ${COMMENT}"
+  TEST_COMMENTS="${TEST_COMMENTS}${TEST_FILE##*/}: ${COMMENT}"
   let "TOTAL=TOTAL+1"
 done
 
