@@ -62,6 +62,10 @@ load_file() {
   done < "${FILENAME}"
 }
 
+# проверка что запуск идет не из-под root
+[ ${UID} -eq 0 ] && exit_error 'Unable to work as root'
+
+# разбор параметров
 while [ -n "${1}" ]; do
   case "${1}" in
     -r|--report)
@@ -72,7 +76,7 @@ while [ -n "${1}" ]; do
       exit
       ;;
     -c|--config)
-      [ -n "${2}" ] && CONF_FILE="${2}" || exit_error "config file is not specified"
+      [ -n "${2}" ] && CONF_FILE="${2}" || exit_error 'config file is not specified'
       shift
       ;;
     *)
