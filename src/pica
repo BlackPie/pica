@@ -72,7 +72,7 @@ while [ -n "${1}" ]; do
       exit
       ;;
     -c|--config)
-      [ -n "${2}" ] && CONF_FILE="${2}"
+      [ -n "${2}" ] && CONF_FILE="${2}" || exit_error "config file is not specified"
       shift
       ;;
     *)
