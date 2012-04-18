@@ -71,6 +71,10 @@ while [ -n "${1}" ]; do
       print_help
       exit
       ;;
+    -c|--config)
+      [ -n "${2}" ] && CONF_FILE="${2}"
+      shift
+      ;;
     *)
       print_help
       exit_error "Unknown option ${1}"
