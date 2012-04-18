@@ -2,6 +2,15 @@
 
 CONF_FILE='/etc/pica/pica.conf'
 
+print_help() {
+  echo "USAGE: ${0##*\/} [-r]"
+  echo '     -r --report           Print report'
+  echo '        --help             Print this help'
+}
+
+echo_console() {
+  [ -z "${PRINT_REPORT}" ] && echo "${@}" >&2
+}
 
 write_log() {
   [ -n "${PICA_LOG_FILE}" ] && echo "$(date): ${*}" >> "${PICA_LOG_FILE}"
@@ -21,7 +30,7 @@ exit_error() {
 # 5 - TEST_COMMENTS
 save_report() {
   echo "${4} (${2}/${3})" > "${1}~" || exit_error "Write report file ${1}~ failed"
-  echo -e "${5}" >> "${1}~" || exit_error "Write report file ${1}~ failed"
+  echo -e -n "${5}" >> "${1}~" || exit_error "Write report file ${1}~ failed"
   mv "${1}~" "${1}" || exit_error "Write report file ${1} failed"
 }
 
@@ -52,6 +61,23 @@ load_file() {
     fi
   done < "${FILENAME}"
 }
+
+while [ -n "${1}" ]; do
+  case "${1}" in
+    -r|--report)
+      PRINT_REPORT='yes'
+      ;;
+    -h|--help)
+      print_help
+      exit
+      ;;
+    *)
+      print_help
+      exit_error "Unknown option ${1}"
+      ;;
+  esac
+  shift
+done
 
 # проверка наличия conf файла
 [ -f "${CONF_FILE}" ] || exit_error "Conf file ${CONF_FILE} does not exist"
@@ -114,6 +140,8 @@ for TEST_FILE in "${PICA_TEST_DIR}"/*.pa; do
   unset CACHE_STATUS
   unset CACHE_COMMENT
 
+  unset RESULT
+
 
   load_file "${TEST_FILE}" PA_VERSION PA_TAG PA_COMMAND PA_COMMENT_OK PA_COMMENT_FAIL PA_EXPIRE PA_SEVERITY \
     || exit_error "Error loading config file ${CONF_FILE}"
@@ -132,43 +160,48 @@ for TEST_FILE in "${PICA_TEST_DIR}"/*.pa; do
   # исключение тестов по имени в глобальном конфиге
   [ -n "$(echo ${PICA_EXCEPTIONS[@]} ${TEST_FILE##*/} | tr ' ' '\n' | sort | uniq -d)" ] && continue
 
-  echo -n "${TEST_FILE##*/}... " >&2
+  echo_console -n "${TEST_FILE##*/}... "
 
   # проверка кеш файла
   if [ -e "${PICA_TEST_CACHE_DIR}/${TEST_FILE##*/}.cache" ]; then
-  # загрузка кеш файла
+    # загрузка кеш файла
     load_file "${PICA_TEST_CACHE_DIR}/${TEST_FILE##*/}.cache" CACHE_VERSION CACHE_STATUS CACHE_COMMENT \
       || exit_error "Error loading config file ${CONF_FILE}"
 
     # проверка кэша по EXPIRE
     LIFETIME_OF_CACHE=$[$(date +'%s')-$(stat -c '%Z' "${PICA_TEST_CACHE_DIR}/${TEST_FILE##*/}.cache")]
     if [ "${LIFETIME_OF_CACHE}" -lt "${PA_EXPIRE}" -a "${PA_VERSION}" = "${CACHE_VERSION}" ]; then
-      echo 'cached' >&2
-      continue
+      echo_console -n 'cached '
+      RESULT="${CACHE_STATUS}"
     fi
+  fi 
+
+  # выполняем тестирование, если кеш промах или кэш отсутствует
+  if [ -z "${RESULT}" ]; then
+    if ${PA_COMMAND} >/dev/null 2>/dev/null; then
+      RESULT='OK'
+    else
+      RESULT="${PA_SEVERITY}"
+    fi
+    save_cache "${PICA_TEST_CACHE_DIR}/${TEST_FILE##*/}.cache" "${PA_VERSION}" "${RESULT}" "${PA_COMMENT_OK}" "${PA_COMMENT_FAIL}"
   fi
 
-  if ${PA_COMMAND} >/dev/null 2>/dev/null; then
-    RESULT='OK'
-  else
-    RESULT="${PA_SEVERITY}"
-  fi
-
-  echo "${RESULT}" >&2
+  echo_console "${RESULT}"
 
   # создание статуса для отчета
   if [ "${RESULT}" = 'CRITICAL' ]; then
     let "REPORT_CRITICAL = REPORT_CRITICAL + 1"
+    COMMENT="${PA_COMMENT_FAIL}"
+    TEST_COMMENTS="${TEST_COMMENTS}${TEST_FILE##*/}: ${RESULT}: ${COMMENT}\n"
   elif [ "${RESULT}" = 'WARNING' ]; then
     let "REPORT_WARNING = REPORT_WARNING + 1"
+    COMMENT="${PA_COMMENT_FAIL}"
+    TEST_COMMENTS="${TEST_COMMENTS}${TEST_FILE##*/}: ${RESULT}: ${COMMENT}\n"
   else
     let "TOTAL_OK=TOTAL_OK+1"
+    COMMENT="${PA_COMMENT_OK}" 
   fi
-
-  save_cache "${PICA_TEST_CACHE_DIR}/${TEST_FILE##*/}.cache" "${PA_VERSION}" "${RESULT}" "${PA_COMMENT_OK}" "${PA_COMMENT_FAIL}"
   
-  [ "${RESULT}" = 'OK' ] && COMMENT="${PA_COMMENT_OK}" || COMMENT="${PA_COMMENT_FAIL}"
-  TEST_COMMENTS="${TEST_COMMENTS}${TEST_FILE##*/}: ${COMMENT}"
   let "TOTAL=TOTAL+1"
 done
 
@@ -181,4 +214,10 @@ elif [ ${REPORT_CRITICAL} != 0 ]; then
 fi
 
 # Запись статуса в отчет
+
 save_report "${PICA_REPORT_DIR}/report" "${TOTAL_OK}" "${TOTAL}" "${REPORT_STATUS}" "${TEST_COMMENTS}"
+
+if [ -n "${PRINT_REPORT}" ]; then
+  cat "${PICA_REPORT_DIR}/report" || exit_error "Unable to read report file ${PICA_REPORT_DIR}/report"
+fi
+
