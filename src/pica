@@ -87,11 +87,20 @@ while [ -n "${1}" ]; do
   shift
 done
 
+# проверка наличия папок cache и report
+if [ ! -d "/var/pica/cache" ]; then
+  mkdir "/var/pica/cache" || exit_error "Can not create /var/pica/cache"
+fi
+if [ ! -d "/var/pica/report" ]; then
+  mkdir "/var/pica/report" || exit_error "Can not create /var/pica/report"
+fi
+
+
 # проверка наличия conf файла
 [ -f "${CONF_FILE}" ] || exit_error "Conf file ${CONF_FILE} does not exist"
 
 # проверка права чтения conf файла
-[ -r "${CONF_FILE}" ] || exit_error "Can not read conf file ${CONF_FILE}"
+[ -r "${CONF_FILE}" ] || exit_error "/var/pica/cache""Can not read conf file ${CONF_FILE}"
 
 # загружаем из конфигурационного файла указанные опции
 load_file "${CONF_FILE}" PICA_TAGS PICA_TEST_DIR PICA_TEST_CACHE_DIR PICA_REPORT_DIR PICA_EXCEPTIONS PICA_LOG_FILE \
@@ -103,6 +112,16 @@ load_file "${CONF_FILE}" PICA_TAGS PICA_TEST_DIR PICA_TEST_CACHE_DIR PICA_REPORT
 [ -z "${PICA_REPORT_DIR}" ] && exit_error "PICA_REPORT_DIR is not set in ${CONF_FILE}"
 [ -z "${PICA_EXCEPTIONS}" ] && exit_error "PICA_EXCEPTIONS is not set in ${CONF_FILE}"
 [ -z "${PICA_LOG_FILE}" ] && exit_error "PICA_LOG_FILE is not set in ${CONF_FILE}"
+
+
+# проверка наличия папок cache и report
+if [ ! -d "${PICA_TEST_CACHE_DIR}" ]; then
+    mkdir "${PICA_TEST_CACHE_DIR}" || exit_error "Can not create /var/pica/cache"
+  fi
+  if [ ! -d "${PICA_REPORT_DIR}" ]; then
+      mkdir "${PICA_REPORT_DIR}" || exit_error "Can not create /var/pica/report"
+    fi
+
 
 # проверка прав записи в лог файл
   [ -w "${PICA_LOG_FILE}" ] || exit_error "${PICA_LOG_FILE} is not writable "
