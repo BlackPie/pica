@@ -160,11 +160,15 @@ TOTAL_OK=0
 # формирование списка тестов
 TEST_LIST=$(echo "${PICA_TEST_DIR}"/*.pa)
 TEST_LIST+=" "
+
+# проверки при наличии локальных тестов
 if [ -n "${PICA_LOCAL_TEST_DIR}" ]; then
+  [ -z "$(ls ${PICA_LOCAL_TEST_DIR})" ] && exit_error "Local test's dir is empty"
+  [ ! -r "${PICA_LOCAL_TEST_DIR}" ] && exit_error "Local test's dir is unreadable"
+  
   TEST_LIST+=$(echo "${PICA_LOCAL_TEST_DIR}"/*.pa)
 fi
 
-echo $PICA_LOCAL_TEST_DIR
 
 # переборка всех тест файлов
 for TEST_FILE in ${TEST_LIST}; do
