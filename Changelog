@@ -1,2 +1,6 @@
+1.1.0 - [24.04.2012]
++ Support for local tests
+* Downgrade root to unprivileged user
+
 1.0.0 beta1 - [19.04.2012]
 Start pica project
