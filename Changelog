@@ -1,3 +1,6 @@
+1.2.0 - [25.04.2012]
++ Single test run added (-t option)
+
 1.1.1 - [24.04.2012]
 * Fix broken cache handling
 * Fix quotes mess

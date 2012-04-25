@@ -1,10 +1,12 @@
 #!/bin/bash
 
+
 CONF_FILE='/etc/pica/pica.conf'
 
 print_help() {
   echo "USAGE: ${0##*\/} [-r]"
   echo '     -r --report           Print report'
+  echo '     -t --test <testfile>  Run single test where testfile is full pathname'
   echo '        --help             Print this help'
 }
 
@@ -86,7 +88,6 @@ while [ -n "${1}" ]; do
       ;;
     -t|--test)
       [ -n "${2}" ] && SINGLE_TEST_FILE="${2}" || exit_error 'single test file is not specified'
-      echo ${SINGLE_TEST_FILE}
       shift
       ;;
     *)
@@ -163,13 +164,18 @@ REPORT_CRITICAL=0
 TOTAL=0
 TOTAL_OK=0
 
-# формирование списка тестов
-TEST_LIST=$(echo "${PICA_TEST_DIR}"/*.pa)
+if [ -n "${SINGLE_TEST_FILE}" ]; then
+  # работа ключа -t для выполнения одиночного теста
+  TEST_LIST="${SINGLE_TEST_FILE}"
+else
+  # формирование списка тестов
+  TEST_LIST=$(echo "${PICA_TEST_DIR}"/*.pa)
 
-# проверки при наличии локальных тестов
-if [ -n "${PICA_LOCAL_TEST_DIR}" ]; then
-  [ ! -r "${PICA_LOCAL_TEST_DIR}" ] && exit_error "Local test's dir is unreadable"
-  TEST_LIST+=" "$(echo "${PICA_LOCAL_TEST_DIR}"/*.pa)
+  # проверки при наличии локальных тестов
+  if [ -n "${PICA_LOCAL_TEST_DIR}" ]; then
+    [ ! -r "${PICA_LOCAL_TEST_DIR}" ] && exit_error "Local test's dir is unreadable"
+    TEST_LIST+=" "$(echo "${PICA_LOCAL_TEST_DIR}"/*.pa)
+  fi
 fi
 
 
@@ -228,7 +234,11 @@ for TEST_FILE in ${TEST_LIST}; do
 
     # проверка кэша по EXPIRE
     LIFETIME_OF_CACHE=$[$(date +'%s')-$(stat -c '%Z' "${PICA_TEST_CACHE_DIR}/${TEST_FILE##*/}.cache")]
-    if [ "${LIFETIME_OF_CACHE}" -lt "${PA_EXPIRE}" -a "${PA_VERSION}" = "${CACHE_VERSION}" -a -n "${CACHE_VERSION}" ]; then
+    if [ "${LIFETIME_OF_CACHE}" -lt "${PA_EXPIRE}" -a \
+      "${PA_VERSION}" = "${CACHE_VERSION}" -a \
+      -n "${CACHE_VERSION}" -a \
+      -z "${SINGLE_TEST_FILE}" ]; then
+
       echo_console -n 'cached '
       RESULT="${CACHE_STATUS}"
     fi
