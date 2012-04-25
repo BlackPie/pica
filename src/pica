@@ -64,6 +64,10 @@ load_file() {
   done < "${FILENAME}"
 }
 
+run_single_test() {
+  echo "${1}"
+}
+
 ARGS_PICA=( "$@" )
 
 # разбор параметров
@@ -78,6 +82,11 @@ while [ -n "${1}" ]; do
       ;;
     -c|--config)
       [ -n "${2}" ] && CONF_FILE="${2}" || exit_error 'config file is not specified'
+      shift
+      ;;
+    -t|--test)
+      [ -n "${2}" ] && SINGLE_TEST_FILE="${2}" || exit_error 'single test file is not specified'
+      echo ${SINGLE_TEST_FILE}
       shift
       ;;
     *)
