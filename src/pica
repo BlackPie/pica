@@ -119,6 +119,10 @@ load_file "${CONF_FILE}" PICA_TAGS PICA_TEST_DIR PICA_LOCAL_TEST_DIR PICA_TEST_E
 # Проверка запуска из под root
 [ ${UID} -eq 0 ] && exec su -l "${PICA_USER}" -c "$0 ${ARGS_PICA[*]}"
 
+# проверка откуда будет запускаться SINGLE_TEST_FILE
+  if [ -n "${SINGLE_TEST_FILE}" -a "${SINGLE_TEST_FILE}" = "${SINGLE_TEST_FILE/\//}" ]; then
+    SINGLE_TEST_FILE="${PICA_TEST_DIR}/${SINGLE_TEST_FILE}"
+  fi
 
 # проверка наличия папок cache, report, log
 if [ ! -d "${PICA_TEST_CACHE_DIR}" ]; then
