@@ -55,14 +55,15 @@ save_cache() {
 load_file() {
   FILENAME="${1}"
   shift
+  GREP_PARAM=$(echo "${@} ^$ ^#" | sed 's# #\\|#g')
+  GREP_ERROR=$(grep -v "${GREP_PARAM}" "${FILENAME}")
+  if [ -n "${GREP_ERROR}" ]; then
+    echo "Incorrect params: ${GREP_ERROR}" >&2
+    return 1;
+  fi
   while read LINE; do
     [ -z "${LINE}" -o "${LINE#\#}" != "${LINE}" ] && continue
-    if [ "$(echo ${@} ${LINE%%=*} | tr ' ' '\n' | sort | uniq -d)" = "${LINE%%=*}" ]; then
-      eval "${LINE%%=*}=\"${LINE#*=}\""
-    else
-      echo "Error line: ${LINE}"  >&2
-      return 1
-    fi
+    eval "${LINE%%=*}=\"${LINE#*=}\""
   done < "${FILENAME}"
 }
 
@@ -107,7 +108,7 @@ done
 
 # загружаем из конфигурационного файла указанные опции
 load_file "${CONF_FILE}" PICA_TAGS PICA_TEST_DIR PICA_LOCAL_TEST_DIR PICA_TEST_EXCLUDES PICA_TEST_CACHE_DIR \
-  PICA_REPORT_DIR  PICA_LOG_FILE PICA_USER\
+  PICA_REPORT_DIR  PICA_LOG_FILE PICA_USER \
   || exit_error "Error loading config file ${CONF_FILE}"
 
 [ -z "${PICA_TAGS}" ] && exit_error "PICA_TAGS is not set in ${CONF_FILE}"
