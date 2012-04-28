@@ -1,3 +1,5 @@
++ Dynamic flags added
+
 1.2.1 - [26.04.2012]
 * Fix bug with pathname when pica run with -t key
 

@@ -26,7 +26,7 @@ exit_error() {
   exit 1
 }
 
-# запись кэш файла
+# запись отчета
 # 1 - PATHFILE
 # 2 - TOTAL_OK
 # 3 - TOTAL
@@ -51,6 +51,17 @@ save_cache() {
   echo "CACHE_COMMENT=${SC_COMMENT}" >> "${1}~" || exit_error "Write cache file ${1}~ failed"
   mv "${1}~" "${1}" || exit_error "Write cache file ${1} failed"
 }
+
+# запись кэш файла флаг-теста
+# 1 - PATHFILE
+# 2 - PF_VERSION
+# 3 - RESULT
+save_pf_cache() {
+  echo "PF_CACHE_VERSION=${2}" > "${1}~" || exit_error "Write cache file ${1}~ failed"
+  echo "PF_CACHE_STATE=${3}" >> "${1}~" || exit_error "Write cache file ${1}~ failed"
+  mv "${1}~" "${1}" || exit_error "Write cache file ${1} failed"
+}
+
 
 load_file() {
   FILENAME="${1}"
@@ -107,10 +118,9 @@ done
 
 # загружаем из конфигурационного файла указанные опции
 load_file "${CONF_FILE}" PICA_TAGS PICA_TEST_DIR PICA_LOCAL_TEST_DIR PICA_TEST_EXCLUDES PICA_TEST_CACHE_DIR \
-  PICA_REPORT_DIR  PICA_LOG_FILE PICA_USER\
+  PICA_REPORT_DIR PICA_LOG_FILE PICA_USER PICA_FLAG_DIR PICA_FLAG_CACHE_DIR \
   || exit_error "Error loading config file ${CONF_FILE}"
 
-[ -z "${PICA_TAGS}" ] && exit_error "PICA_TAGS is not set in ${CONF_FILE}"
 [ -z "${PICA_TEST_DIR}" ] && exit_error "PICA_TEST_DIR is not set in ${CONF_FILE}"
 [ -z "${PICA_TEST_CACHE_DIR}" ] && exit_error "PICA_TEST_CACHE_DIR is not set in ${CONF_FILE}"
 [ -z "${PICA_REPORT_DIR}" ] && exit_error "PICA_REPORT_DIR is not set in ${CONF_FILE}"
@@ -167,6 +177,7 @@ REPORT_WARNING=0
 REPORT_CRITICAL=0
 TOTAL=0
 TOTAL_OK=0
+LOADED_FLAGS="${PICA_TAGS}"
 
 if [ -n "${SINGLE_TEST_FILE}" ]; then
   # работа ключа -t для выполнения одиночного теста
@@ -182,6 +193,62 @@ else
   fi
 fi
 
+for FLAG_FILE in "${PICA_FLAG_DIR}"/*.pf; do
+
+  FLAG_FILENAME="${FLAG_FILE##*/}"
+
+  # Проверяем, что флаг уже загружен
+  [ -n "$(echo ${LOADED_FLAGS} ${FLAG_FILENAME%\.pf} | tr ' ' '\n' | sort | uniq -d)" ] && continue
+
+  # проверка тест файла на читаемость
+  if ! [ -r "${FLAG_FILE}" ]; then
+    echo "Test file ${FLAG_FILE} is unreadable" >&2
+    continue
+  fi
+
+  unset PF_VERSION
+  unset PF_TAG_LIST
+  unset PF_COMMAND
+  unset PF_EXPIRE
+  unset PF_RESULT
+
+  unset PF_CACHE_VERSION
+  unset PF_CACHE_STATE
+
+  load_file "${FLAG_FILE}" PF_VERSION PF_TAG_LIST PF_COMMAND PF_EXPIRE \
+    || exit_error "Error loading flag file ${FLAG_FILE}"
+
+  [ -z "${PF_VERSION}" ] && echo "PF_VERSION is not exist in ${FLAG_FILE}" >&2 && continue
+  [ -z "${PF_COMMAND}" ] && echo "PF_COMMAND is not exist in ${FLAG_FILE}" >&2 && continue
+  [ -z "${PF_EXPIRE}" ] && echo "PF_EXPIRE is not exist in ${FLAG_FILE}" >&2 && continue
+
+  LOADED_FLAGS+=" ${FLAG_FILENAME%\.pf}"
+
+  # Пытаемся загрузить значения из кэша
+  if [ -e "${PICA_FLAG_CACHE_DIR}/${FLAG_FILE##*/}.cache" ]; then
+    if load_file "${PICA_FLAG_CACHE_DIR}/${FLAG_FILE##*/}.cache" PF_CACHE_VERSION PF_CACHE_STATE; then
+      LIFETIME_OF_CACHE=$[$(date +'%s')-$(stat -c '%Z' "${PICA_FLAG_CACHE_DIR}/${FLAG_FILE##*/}.cache")]
+      if [ "${LIFETIME_OF_CACHE}" -lt "${PF_EXPIRE}" -a \
+        "${PF_VERSION}" = "${PF_CACHE_VERSION}" -a \
+        -n "${PF_CACHE_VERSION}" ]; then
+        PF_RESULT="${PF_CACHE_STATE}"
+      fi
+    fi
+  fi
+
+  # Выполняем тест на флаг, если не смогли взять его из кэша
+  if [ -z "${PF_RESULT}" ]; then
+    if sh -c "${PF_COMMAND}" >/dev/null 2>/dev/null; then
+      PF_RESULT='ON'
+    else
+      PF_RESULT='OFF'
+    fi
+    save_pf_cache "${PICA_FLAG_CACHE_DIR}/${FLAG_FILE##*/}.cache" "${PF_VERSION}" "${PF_RESULT}"
+  fi
+
+  # Добавляем флаг если он поднят
+  [ "${PF_RESULT}" = 'ON' ] && PICA_TAGS+=" ${FLAG_FILENAME%\.pf}"
+done
 
 # переборка всех тест файлов
 for TEST_FILE in ${TEST_LIST}; do
