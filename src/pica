@@ -7,6 +7,8 @@ print_help() {
   echo "USAGE: ${0##*\/} [-r]"
   echo '     -r --report           Print report'
   echo '     -t --test <testfile>  Run single test where testfile is full pathname'
+  echo '     -c --config           Run pica with external conf file'
+  echo '     -C --no-cache         Pica ignore cache files and run all test'
   echo '        --help             Print this help'
 }
 
@@ -90,6 +92,9 @@ while [ -n "${1}" ]; do
     -t|--test)
       [ -n "${2}" ] && SINGLE_TEST_FILE="${2}" || exit_error 'single test file is not specified'
       shift
+      ;;
+    -C|--cache)
+      RUN_ALL_TESTS='yes' 
       ;;
     *)
       print_help
@@ -243,9 +248,10 @@ for TEST_FILE in ${TEST_LIST}; do
       "${PA_VERSION}" = "${CACHE_VERSION}" -a \
       -n "${CACHE_VERSION}" -a \
       -z "${SINGLE_TEST_FILE}" ]; then
-
-      echo_console -n 'cached '
-      RESULT="${CACHE_STATUS}"
+        if [ -z ${RUN_ALL_TESTS} ]; then # Пришлось сделать еще один if тк была ошибка что слишком много аргументов в if
+          echo_console -n 'cached '
+          RESULT="${CACHE_STATUS}"
+        fi
     fi
   fi
 
