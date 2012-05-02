@@ -227,7 +227,7 @@ for TEST_FILE in ${TEST_LIST}; do
     [ -n "$(echo ${PICA_TEST_EXCLUDES} ${TEST_FILE##*/} | tr ' ' '\n' | sort | uniq -d)" ] && continue
   fi
 
-  echo_console -n "${TEST_FILE##*/}... "
+  echo_console -n "${TEST_FILE##*/} ... "
 
   # проверка кеш файла
   if [ -e "${PICA_TEST_CACHE_DIR}/${TEST_FILE##*/}.cache" ]; then
