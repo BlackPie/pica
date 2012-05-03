@@ -1,4 +1,7 @@
-*fix function load_file
+1.3.0 - [03.05.2012]
++ #25 new option -C for run without cache
+* #26 output fix
+* perfomance fix function load_file
 
 1.2.1 - [26.04.2012]
 * Fix bug with pathname when pica run with -t key
