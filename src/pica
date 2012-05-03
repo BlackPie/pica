@@ -7,6 +7,8 @@ print_help() {
   echo "USAGE: ${0##*\/} [-r]"
   echo '     -r --report           Print report'
   echo '     -t --test <testfile>  Run single test where testfile is full pathname'
+  echo '     -c --config <file>    Use <file> as a config file'
+  echo '     -C --no-cache         Ignore cache files'
   echo '        --help             Print this help'
 }
 
@@ -66,14 +68,15 @@ save_pf_cache() {
 load_file() {
   FILENAME="${1}"
   shift
+  GREP_PARAM=$(echo "${@} ^$ ^#" | sed 's# #\\|#g')
+  GREP_ERROR=$(grep -v "${GREP_PARAM}" "${FILENAME}")
+  if [ -n "${GREP_ERROR}" ]; then
+    echo "Incorrect params: ${GREP_ERROR}" >&2
+    return 1;
+  fi
   while read LINE; do
     [ -z "${LINE}" -o "${LINE#\#}" != "${LINE}" ] && continue
-    if [ "$(echo ${@} ${LINE%%=*} | tr ' ' '\n' | sort | uniq -d)" = "${LINE%%=*}" ]; then
-      eval "${LINE%%=*}=\"${LINE#*=}\""
-    else
-      echo "Error line: ${LINE}"  >&2
-      return 1
-    fi
+    eval "${LINE%%=*}=\"${LINE#*=}\""
   done < "${FILENAME}"
 }
 
@@ -100,6 +103,9 @@ while [ -n "${1}" ]; do
     -t|--test)
       [ -n "${2}" ] && SINGLE_TEST_FILE="${2}" || exit_error 'single test file is not specified'
       shift
+      ;;
+    -C|--no-cache)
+      NO_CACHE='yes' 
       ;;
     *)
       print_help
@@ -293,7 +299,7 @@ for TEST_FILE in ${TEST_LIST}; do
     [ -n "$(echo ${PICA_TEST_EXCLUDES} ${TEST_FILE##*/} | tr ' ' '\n' | sort | uniq -d)" ] && continue
   fi
 
-  echo_console -n "${TEST_FILE##*/}... "
+  echo_console -n "${TEST_FILE##*/} ... "
 
   # проверка кеш файла
   if [ -e "${PICA_TEST_CACHE_DIR}/${TEST_FILE##*/}.cache" ]; then
@@ -308,7 +314,8 @@ for TEST_FILE in ${TEST_LIST}; do
     if [ "${LIFETIME_OF_CACHE}" -lt "${PA_EXPIRE}" -a \
       "${PA_VERSION}" = "${CACHE_VERSION}" -a \
       -n "${CACHE_VERSION}" -a \
-      -z "${SINGLE_TEST_FILE}" ]; then
+      -z "${SINGLE_TEST_FILE}" -a \
+      -z "${NO_CACHE}" ]; then
 
       echo_console -n 'cached '
       RESULT="${CACHE_STATUS}"
