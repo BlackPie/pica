@@ -7,6 +7,7 @@ CONF_FILE='/etc/pica/pica.conf'
 print_help() {
   echo "USAGE: ${0##*\/} [-r]"
   echo '     -r --report           Print report'
+  echo '     -v --verbose          Be verbose'
   echo '     -t --test <testfile>  Run single test where testfile is full pathname'
   echo '     -c --config <file>    Use <file> as a config file'
   echo '     -C --no-cache         Ignore cache files'
@@ -15,6 +16,10 @@ print_help() {
 
 echo_console() {
   [ -z "${PRINT_REPORT}" ] && echo "${@}" >&2
+}
+
+echo_verbose() {
+  [ -n "${BE_VERBOSE}" ] && echo_console "${@}"
 }
 
 write_log() {
@@ -81,13 +86,11 @@ load_file() {
   done < "${FILENAME}"
 }
 
-run_single_test() {
-  echo "${1}"
-}
-
 check_flag() {
   local FLAGNAME="${1}"
   shift
+
+  echo_verbose -n " ${FLAGNAME}"
 
   # Проверка бесконечного цикла
   [[ "${*}" =~ ((^| )${FLAGNAME}( |$)) ]] && return 1
@@ -96,7 +99,7 @@ check_flag() {
   [[ "${LOADED_FLAGS}" =~ ((^| )${FLAGNAME}( |$)) ]] && return
 
   local FLAG_FILE="${PICA_FLAG_DIR}/${FLAGNAME}.pf"
-  local FLAG_FILE_CACHE="${FLAG_FILE_CACHE}"
+  local FLAG_FILE_CACHE="${PICA_FLAG_CACHE_DIR}/${FLAGNAME}.pf.cache"
 
   # проверка тест файла на читаемость
   if ! [ -r "${FLAG_FILE}" ]; then
@@ -148,7 +151,7 @@ check_flag() {
   fi
 
   # Добавляем флаг если он поднят
-  if [ "${PF_RESULT}" = 'ON' ]; then 
+  if [ "${PF_RESULT}" = 'ON' ]; then
     PICA_TAGS+=" ${FLAGNAME}"
     return 0
   else
@@ -164,6 +167,9 @@ while [ -n "${1}" ]; do
     -r|--report)
       PRINT_REPORT='yes'
       ;;
+    -v|--verbose)
+      BE_VERBOSE='yes'
+      ;;
     -h|--help)
       print_help
       exit
@@ -177,7 +183,7 @@ while [ -n "${1}" ]; do
       shift
       ;;
     -C|--no-cache)
-      NO_CACHE='yes' 
+      NO_CACHE='yes'
       ;;
     *)
       print_help
@@ -274,6 +280,11 @@ fi
 # переборка всех тест файлов
 for TEST_FILE in ${TEST_LIST}; do
 
+  # исключение тестов по имени в глобальном конфиге
+  if [ -n "${PICA_TEST_EXCLUDES}" ]; then
+    [ -n "$(echo ${PICA_TEST_EXCLUDES} ${TEST_FILE##*/} | tr ' ' '\n' | sort | uniq -d)" ] && continue
+  fi
+
   # проверка тест файла на читаемость
   if ! [ -r "${TEST_FILE}" ]; then
     echo "Test file ${TEST_FILE} is unreadable" >&2
@@ -307,21 +318,23 @@ for TEST_FILE in ${TEST_LIST}; do
   [ -z "${PA_EXPIRE}" ] && echo "PA_EXPIRE is not exist in ${TEST_FILE}" >&2 && continue
   [ -z "${PA_SEVERITY}" ] && echo "PA_SEVERITY is not exist in ${TEST_FILE}" >&2 && continue
 
-  for TAG in ${PA_REQUIRED_TAGS}; do
-    if ! check_flag ${TAG}; then
-      LOAD_RESULT='false'
-      break
-    fi
-  done
+  echo_console -n "${TEST_FILE##*/} ... "
 
-  [ "${LOAD_RESULT}" = 'false' ] && continue
-
-  # исключение тестов по имени в глобальном конфиге
-  if [ -n "${PICA_TEST_EXCLUDES}" ]; then
-    [ -n "$(echo ${PICA_TEST_EXCLUDES} ${TEST_FILE##*/} | tr ' ' '\n' | sort | uniq -d)" ] && continue
+  if [ -n "${PA_REQUIRED_TAGS}" ]; then
+    echo_verbose -n '['
+    for TAG in ${PA_REQUIRED_TAGS}; do
+      if ! check_flag ${TAG}; then
+        LOAD_RESULT='false'
+        break
+      fi
+    done
+    echo_verbose -n ' ] '
   fi
 
-  echo_console -n "${TEST_FILE##*/} ... "
+  if [ "${LOAD_RESULT}" = 'false' ]; then
+    echo_console 'skip'
+    continue
+  fi
 
   # проверка кеш файла
   if [ -e "${PICA_TEST_CACHE_DIR}/${TEST_FILE##*/}.cache" ]; then
