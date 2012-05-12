@@ -1,5 +1,6 @@
 #!/bin/bash
 
+#set -x
 
 CONF_FILE='/etc/pica/pica.conf'
 
@@ -85,12 +86,17 @@ run_single_test() {
 }
 
 check_flag() {
-  local FLAG_FILE="${1}"
-  local FLAG_FILENAME="${FLAG_FILE##*/}"
-  TRY_FLAGS=( '' )
+  local FLAGNAME="${1}"
+  shift
+
+  # Проверка бесконечного цикла
+  [[ "${*}" =~ ((^| )${FLAGNAME}( |$)) ]] && return 1
 
   # Проверяем, что флаг уже загружен
-  [ -n "$(echo ${LOADED_FLAGS} ${FLAG_FILENAME%\.pf} | tr ' ' '\n' | sort | uniq -d)" ] && return
+  [[ "${LOADED_FLAGS}" =~ ((^| )${FLAGNAME}( |$)) ]] && return
+
+  local FLAG_FILE="${PICA_FLAG_DIR}/${FLAGNAME}.pf"
+  local FLAG_FILE_CACHE="${FLAG_FILE_CACHE}"
 
   # проверка тест файла на читаемость
   if ! [ -r "${FLAG_FILE}" ]; then
@@ -114,30 +120,15 @@ check_flag() {
   [ -z "${PF_EXPIRE}" ] && echo "PF_EXPIRE is not exist in ${FLAG_FILE}" >&2 && return 1
 
   for TAG in ${PF_REQUIRED_TAGS}; do
-    TRY_FLAGS=( "${TRY_FLAGS}" "${TAG}" )
-    # TRY_FLAGS[${#TRY_FLAGS[*]}]="${TAG}"
-    
-    # проверка дублирующихся тегов в стеке
-    if [ -n "$(echo ${TRY_FLAGS} | tr ' ' '\n' | sort | uniq -d)" ]; then
-      for FLAG in ${TRY_FLAGS}; do
-        echo "${FLAG} not loaded"
-        unset TRY_FLAGS[${#TRY_FLAGS[@]}-1]
-      done
-    fi
-
-
-    if [ "${PREVIOUS_TAG}" != "${TAG}" ]; then
-      check_flag "${PICA_FLAG_DIR}/${PF_REQUIRED_TAGS}.pf" || return 1
-    fi
-    PREVIOUS_TAG="${TAG}"
+    check_flag ${TAG} ${FLAGNAME} ${*} || return 1
   done
 
-  LOADED_FLAGS+=" ${FLAG_FILENAME%\.pf}"
+  LOADED_FLAGS+=" ${FLAGNAME}"
 
   # Пытаемся загрузить значения из кэша
-  if [ -e "${PICA_FLAG_CACHE_DIR}/${FLAG_FILE##*/}.cache" ]; then
-    if load_file "${PICA_FLAG_CACHE_DIR}/${FLAG_FILE##*/}.cache" PF_CACHE_VERSION PF_CACHE_STATE; then
-      local LIFETIME_OF_CACHE=$[$(date +'%s')-$(stat -c '%Z' "${PICA_FLAG_CACHE_DIR}/${FLAG_FILE##*/}.cache")]
+  if [ -e "${FLAG_FILE_CACHE}" ]; then
+    if load_file "${FLAG_FILE_CACHE}" PF_CACHE_VERSION PF_CACHE_STATE; then
+      local LIFETIME_OF_CACHE=$[$(date +'%s')-$(stat -c '%Z' "${FLAG_FILE_CACHE}")]
       if [ "${LIFETIME_OF_CACHE}" -lt "${PF_EXPIRE}" -a \
         "${PF_VERSION}" = "${PF_CACHE_VERSION}" -a \
         -n "${PF_CACHE_VERSION}" ]; then
@@ -153,12 +144,16 @@ check_flag() {
     else
       local PF_RESULT='OFF'
     fi
-    save_pf_cache "${PICA_FLAG_CACHE_DIR}/${FLAG_FILE##*/}.cache" "${PF_VERSION}" "${PF_RESULT}"
+    save_pf_cache "${FLAG_FILE_CACHE}" "${PF_VERSION}" "${PF_RESULT}"
   fi
 
   # Добавляем флаг если он поднят
-  [ "${PF_RESULT}" = 'ON' ] && PICA_TAGS+=" ${FLAG_FILENAME%\.pf}"
-  return 0
+  if [ "${PF_RESULT}" = 'ON' ]; then 
+    PICA_TAGS+=" ${FLAGNAME}"
+    return 0
+  else
+    return 2
+  fi
 }
 
 ARGS_PICA=( "$@" )
@@ -299,6 +294,7 @@ for TEST_FILE in ${TEST_LIST}; do
   unset CACHE_COMMENT
 
   unset RESULT
+  unset LOAD_RESULT
 
 
   load_file "${TEST_FILE}" PA_VERSION PA_REQUIRED_TAGS PA_COMMAND PA_COMMENT_OK PA_COMMENT_FAIL PA_EXPIRE PA_SEVERITY \
@@ -312,11 +308,13 @@ for TEST_FILE in ${TEST_LIST}; do
   [ -z "${PA_SEVERITY}" ] && echo "PA_SEVERITY is not exist in ${TEST_FILE}" >&2 && continue
 
   for TAG in ${PA_REQUIRED_TAGS}; do
-    check_flag "${PICA_FLAG_DIR}/${TAG}.pf" || continue
+    if ! check_flag ${TAG}; then
+      LOAD_RESULT='false'
+      break
+    fi
   done
 
-  # отсечение тестов с неудовлетворяющим тегом
-  [ -z "$(echo ${PICA_TAGS} ${PA_REQUIRED_TAGS} | tr ' ' '\n' | sort | uniq -d)" ] && continue
+  [ "${LOAD_RESULT}" = 'false' ] && continue
 
   # исключение тестов по имени в глобальном конфиге
   if [ -n "${PICA_TEST_EXCLUDES}" ]; then
