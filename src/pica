@@ -82,7 +82,7 @@ load_file() {
   fi
   while read LINE; do
     [ -z "${LINE}" -o "${LINE#\#}" != "${LINE}" ] && continue
-    eval "${LINE%%=*}=\"${LINE#*=}\""
+    eval ${LINE%%=*}='${LINE#*=}'
   done < "${FILENAME}"
 }
 
