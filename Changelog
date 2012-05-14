@@ -1,3 +1,5 @@
+* Fix configuration files load. variable handling.
+
 2.0.0 - [12.05.2012]
 + New variables in pica.conf added (PICA_FLAG_DIR, PICA_FLAG_CACHE_DIR)
 + Verbose run added (-v option)
