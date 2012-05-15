@@ -74,7 +74,7 @@ save_pf_cache() {
 load_file() {
   FILENAME="${1}"
   shift
-  GREP_PARAM=$(echo "${@} ^$ ^#" | sed 's# #\\|#g')
+  GREP_PARAM=$(echo "${@}" | sed -e 's# #=\\|^#g' -e 's/$/\\|^$\\|^#/' )
   GREP_ERROR=$(grep -v "${GREP_PARAM}" "${FILENAME}")
   if [ -n "${GREP_ERROR}" ]; then
     echo "Incorrect params: ${GREP_ERROR}" >&2
@@ -282,7 +282,7 @@ for TEST_FILE in ${TEST_LIST}; do
 
   # исключение тестов по имени в глобальном конфиге
   if [ -n "${PICA_TEST_EXCLUDES}" ]; then
-    [ -n "$(echo ${PICA_TEST_EXCLUDES} ${TEST_FILE##*/} | tr ' ' '\n' | sort | uniq -d)" ] && continue
+    [[ "${PICA_TEST_EXCLUDES}" =~ ((^| )${TEST_FILE##*/}( |$)) ]] && continue
   fi
 
   # проверка тест файла на читаемость
