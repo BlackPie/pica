@@ -1,3 +1,5 @@
+* Fix default configuration
+* New examples added
 * Test load porfomance improved.
 * Better conf file checking.
 * Fix configuration files load. variable handling.
