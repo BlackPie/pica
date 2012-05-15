@@ -99,7 +99,7 @@ check_flag() {
   [[ "${LOADED_FLAGS}" =~ ((^| )${FLAGNAME}( |$)) ]] && return
 
   local FLAG_FILE="${PICA_FLAG_DIR}/${FLAGNAME}.pf"
-  local FLAG_FILE_CACHE="${PICA_FLAG_CACHE_DIR}/${FLAGNAME}.pf.cache"
+  local FLAG_FILE_CACHE="${PICA_TEST_CACHE_DIR}/${FLAGNAME}.pf.cache"
 
   # проверка тест файла на читаемость
   if ! [ -r "${FLAG_FILE}" ]; then
@@ -202,13 +202,14 @@ done
 
 # загружаем из конфигурационного файла указанные опции
 load_file "${CONF_FILE}" PICA_TAGS PICA_TEST_DIR PICA_LOCAL_TEST_DIR PICA_TEST_EXCLUDES PICA_TEST_CACHE_DIR \
-  PICA_REPORT_DIR PICA_LOG_FILE PICA_USER PICA_FLAG_DIR PICA_FLAG_CACHE_DIR \
+  PICA_REPORT_DIR PICA_LOG_FILE PICA_USER PICA_FLAG_DIR \
   || exit_error "Error loading config file ${CONF_FILE}"
 
 [ -z "${PICA_TEST_DIR}" ] && exit_error "PICA_TEST_DIR is not set in ${CONF_FILE}"
 [ -z "${PICA_TEST_CACHE_DIR}" ] && exit_error "PICA_TEST_CACHE_DIR is not set in ${CONF_FILE}"
 [ -z "${PICA_REPORT_DIR}" ] && exit_error "PICA_REPORT_DIR is not set in ${CONF_FILE}"
 [ -z "${PICA_LOG_FILE}" ] && exit_error "PICA_LOG_FILE is not set in ${CONF_FILE}"
+[ -z "${PICA_FLAG_DIR}" ] && exit_error "PICA_FLAG_DIR is not set in ${CONF_FILE}"
 
 # Проверка запуска из под root
 [ ${UID} -eq 0 ] && exec su -l "${PICA_USER}" -c "$0 ${ARGS_PICA[*]}"

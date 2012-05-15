@@ -1,3 +1,4 @@
+* No more split test and flag cache
 * Fix default configuration
 * New examples added
 * Test load porfomance improved.
