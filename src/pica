@@ -1,8 +1,7 @@
 #!/bin/bash
 
-#set -x
-
 CONF_FILE='/etc/pica/pica.conf'
+
 
 print_help() {
   echo "USAGE: ${0##*\/} [-r]"
@@ -14,13 +13,16 @@ print_help() {
   echo '        --help             Print this help'
 }
 
+
 echo_console() {
   [ -z "${PRINT_REPORT}" ] && echo "${@}" >&2
 }
 
+
 echo_verbose() {
   [ -n "${BE_VERBOSE}" ] && echo_console "${@}"
 }
+
 
 write_log() {
   [ -e "${PICA_LOG_FILE}" -a ! -w "${PICA_LOG_FILE}" ] && return
@@ -28,11 +30,13 @@ write_log() {
   echo "$(date): ${*}" >> "${PICA_LOG_FILE}"
 }
 
+
 exit_error() {
   echo "${*}" >&2
   write_log "${*}"
   exit 1
 }
+
 
 # запись отчета
 # 1 - PATHFILE
@@ -45,6 +49,7 @@ save_report() {
   echo -e -n "${5}" >> "${1}~" || exit_error "Write report file ${1}~ failed"
   mv "${1}~" "${1}" || exit_error "Write report file ${1} failed"
 }
+
 
 # запись кэш файла
 # 1 - PATHFILE
@@ -59,6 +64,7 @@ save_cache() {
   echo "CACHE_COMMENT=${SC_COMMENT}" >> "${1}~" || exit_error "Write cache file ${1}~ failed"
   mv "${1}~" "${1}" || exit_error "Write cache file ${1} failed"
 }
+
 
 # запись кэш файла флаг-теста
 # 1 - PATHFILE
@@ -85,6 +91,7 @@ load_file() {
     eval ${LINE%%=*}='${LINE#*=}'
   done < "${FILENAME}"
 }
+
 
 check_flag() {
   local FLAGNAME="${1}"
@@ -159,6 +166,7 @@ check_flag() {
   fi
 }
 
+
 ARGS_PICA=( "$@" )
 
 # разбор параметров
@@ -215,9 +223,9 @@ load_file "${CONF_FILE}" PICA_TAGS PICA_TEST_DIR PICA_LOCAL_TEST_DIR PICA_TEST_E
 [ ${UID} -eq 0 ] && exec su -l "${PICA_USER}" -c "$0 ${ARGS_PICA[*]}"
 
 # проверка откуда будет запускаться SINGLE_TEST_FILE
-  if [ -n "${SINGLE_TEST_FILE}" -a "${SINGLE_TEST_FILE}" = "${SINGLE_TEST_FILE/\//}" ]; then
-    SINGLE_TEST_FILE="${PICA_TEST_DIR}/${SINGLE_TEST_FILE}"
-  fi
+if [ -n "${SINGLE_TEST_FILE}" -a "${SINGLE_TEST_FILE}" = "${SINGLE_TEST_FILE/\//}" ]; then
+  SINGLE_TEST_FILE="${PICA_TEST_DIR}/${SINGLE_TEST_FILE}"
+fi
 
 # проверка наличия папок cache, report, log
 if [ ! -d "${PICA_TEST_CACHE_DIR}" ]; then
@@ -393,10 +401,8 @@ elif [ ${REPORT_CRITICAL} != 0 ]; then
 fi
 
 # Запись статуса в отчет
-
 save_report "${PICA_REPORT_DIR}/report" "${TOTAL_OK}" "${TOTAL}" "${REPORT_STATUS}" "${TEST_COMMENTS}"
 
 if [ -n "${PRINT_REPORT}" ]; then
   cat "${PICA_REPORT_DIR}/report" || exit_error "Unable to read report file ${PICA_REPORT_DIR}/report"
 fi
-
