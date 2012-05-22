@@ -33,7 +33,7 @@ write_log() {
 
 exit_error() {
   echo "${*}" >&2
-  write_log "${*}"
+  [ -n "${PICA_CONF_LOADED}" ] && write_log "${*}"
   exit 1
 }
 
@@ -212,6 +212,8 @@ done
 load_file "${CONF_FILE}" PICA_TAGS PICA_TEST_DIR PICA_LOCAL_TEST_DIR PICA_TEST_EXCLUDES PICA_TEST_CACHE_DIR \
   PICA_REPORT_DIR PICA_LOG_FILE PICA_USER PICA_FLAG_DIR \
   || exit_error "Error loading config file ${CONF_FILE}"
+
+PICA_CONF_LOADED='yes'
 
 [ -z "${PICA_TEST_DIR}" ] && exit_error "PICA_TEST_DIR is not set in ${CONF_FILE}"
 [ -z "${PICA_TEST_CACHE_DIR}" ] && exit_error "PICA_TEST_CACHE_DIR is not set in ${CONF_FILE}"
