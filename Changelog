@@ -1,3 +1,6 @@
+2.1.2 - [27.11.2012]
+* Fix bug with cache when pica run with -C key
+
 2.1.1 - [22.05.2012]
 * #29 Fix early log output
 

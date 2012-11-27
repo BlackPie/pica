@@ -136,7 +136,8 @@ check_flag() {
   LOADED_FLAGS+=" ${FLAGNAME}"
 
   # Пытаемся загрузить значения из кэша
-  if [ -e "${FLAG_FILE_CACHE}" ]; then
+  if [ -e "${FLAG_FILE_CACHE}" -a \
+       -z "${NO_CACHE}" ]; then
     if load_file "${FLAG_FILE_CACHE}" PF_CACHE_VERSION PF_CACHE_STATE; then
       local LIFETIME_OF_CACHE=$[$(date +'%s')-$(stat -c '%Z' "${FLAG_FILE_CACHE}")]
       if [ "${LIFETIME_OF_CACHE}" -lt "${PF_EXPIRE}" -a \
